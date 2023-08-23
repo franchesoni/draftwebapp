@@ -7,10 +7,27 @@
 </head>
 <body>
     <h1>IAseg</h1>
+    <!-- radial button to choose metric [euclidean, cosine] -->
+    <div id="metricRadio">
+        <input type="radio" id="euclidean" name="metric" value="euclidean" checked>
+        <label for="euclidean">Euclidean</label><br>
+        <!-- <input type="radio" id="cosine" name="metric" value="cosine"> -->
+        <!-- <label for="cosine">Cosine</label><br> -->
+    </div>
+    <!-- a slider to choose k -->
+    <div id="kSlider" class="slider">
+        kNN's k: <div id="kValue">1</div>
+        <input id="kRange" type="range" min="1" max="1" value="1" step="2" oninput="kValue.innerText = this.value">
+    </div>
+    <!-- another slider to choose the threshold between 0 and 1 with 0.01 steps-->
+    <div id="thresholdSlider" class="slider">
+        Threshold: <div id="thresholdValue">0.5</div>
+        <input id="thresholdRange" type="range" min="0" max="1" step="0.01" value="0.5" oninput="thresholdValue.innerText = this.value">
+    </div>
+
     <!-- file input button -->
     <input type="file" id="fileUpload" />
-    <button id="getRandomImgBtn">Get Random Image</button>
-    <canvas id="canvas"></canvas>
+    <div id="viewersContainer"></div>
 
     <script src="main.js"></script>
 </body>
