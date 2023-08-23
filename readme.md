@@ -1,0 +1,1 @@
+barebones webapp that allows to load images from the frontend to the backend and from the backend to the frontend using Python FastAPI at the backend and js+html at the frontend
