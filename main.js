@@ -235,7 +235,6 @@ fileInput.addEventListener('change', handleFileSelect);
 
 async function postData (endpoint, key, value) {
     // send a post request with the new value
-    try {
         // create the request options
         const options = {
             method: 'POST',
@@ -257,11 +256,6 @@ async function postData (endpoint, key, value) {
         const data = await response.json();
         console.log(data);
         return true;
-    } catch (error) {
-        // catch any errors that may occur and log them
-        console.error(error);
-        return false;
-    }
 }
 
 
