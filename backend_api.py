@@ -162,12 +162,13 @@ async def viewers_endpoint(websocket: WebSocket):
 
 app.mount("/", StaticFiles(directory=".", html=True))
 
-def launch_server(address, port):
+def launch_server(address, port, frontendport=None):
     # replace ADDRESSPLACEHOLDER and PORTPLACEHOLDER in main.js
+    frontendport = port if frontendport is None else frontendport
     with open('main.js', 'r') as f:
         mainjs = f.read()
     mainjs = mainjs.replace('ADDRESSPLACEHOLDER', address)
-    mainjs = mainjs.replace('PORTPLACEHOLDER', str(port))
+    mainjs = mainjs.replace('PORTPLACEHOLDER', str(frontendport))
     with open('main.js', 'w') as f:
         f.write(mainjs)
 
@@ -183,7 +184,7 @@ def launch_server(address, port):
         with open('main.js', 'r') as f:
             mainjs = f.read()
         mainjs = mainjs.replace(address, 'ADDRESSPLACEHOLDER')
-        mainjs = mainjs.replace(str(port), 'PORTPLACEHOLDER')
+        mainjs = mainjs.replace(str(frontendport), 'PORTPLACEHOLDER')
         with open('main.js', 'w') as f:
             f.write(mainjs)
 
