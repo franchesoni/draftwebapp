@@ -113,6 +113,7 @@ async def setImg(file: UploadFile):
     content = await file.read()
     file_obj = io.BytesIO(content)
     pilimg = Image.open(file_obj)
+    pilimg = pilimg.convert('RGB')
     # create new viewer
     new_viewer = Viewer(np.array(pilimg))
     state.viewers.append(new_viewer)
