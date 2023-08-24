@@ -245,7 +245,9 @@ async function postData (endpoint, key, value) {
             }
         };
         // send the request and wait for the response
-        const response = await fetch(`${httpAddress}/${endpoint}`, options);
+        const response = await fetch(`${httpAddress}/${endpoint}`, options).catch(error => {
+            console.log('catched')
+            return {ok: false};});
         // check the status of the response
         if (!response.ok) {
             // throw an error if the status is not ok
