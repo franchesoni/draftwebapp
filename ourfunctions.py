@@ -1,15 +1,27 @@
 import numpy as np
 import cv2
 
-def extract_features(pimg: np.ndarray) -> np.ndarray:
-    feat_ext = 'hv'
-    if feat_ext == 'hv':
+def sync_feats(feat_list: list[np.ndarray], feat_space: str) -> list[np.ndarray]:
+    if feat_space == 'pos':
+        for frame_ind in range(len(feat_list)):
+            feat_list[frame_ind][:, :, 2] = frame_ind * 10000
+    return feat_list
+
+def extract_features(pimg: np.ndarray, feat_space: str) -> np.ndarray:
+    if feat_space == 'hue':
         # convert to hsv
         hsv = cv2.cvtColor(pimg, cv2.COLOR_RGB2HSV)
         # extract features
-        feat = hsv[..., [True, False, True]]  # hue and value as feature
+        feat = hsv[..., 0:1]  # hue and value as feature
+    elif feat_space == 'rgb':
+        feat = pimg  # rgb as feature
+    elif feat_space == 'pos':
+        # position as features
+        feat = np.zeros(pimg.shape[:2] + (3,))
+        feat[..., 0] = np.arange(pimg.shape[0])[:, None]  # row
+        feat[..., 1] = np.arange(pimg.shape[1])[None, :]  # col
     else:
-        raise ValueError(f"Unknown feature extractor: {feat_ext}")
+        raise ValueError(f"Unknown feature extractor: {feat_space}")
     return feat
 
 def compute_distances(feat: list[np.ndarray], selected_feat: list[np.ndarray]) -> np.ndarray:
@@ -29,12 +41,13 @@ def check_feat_sfeat(feat: list[np.ndarray], selected_feat: list[np.ndarray]):
     for sf in selected_feat:
         assert sf.shape == selected_feat[0].shape, f"Expected all selected features to have shape {selected_feat[0].shape}, got {sf.shape}"
 
-def compute_probs_soft(dist: np.ndarray) -> np.ndarray:
+def compute_probs_soft(dist: np.ndarray, sigma: float = 100) -> np.ndarray:
     """Here we compute the probabilities of being of the same class than the clicks."""
     # dist is B, H, W, C
-    # the similarity to a class is exp(-d^2 / 2*sigma^2) where sigma=1
+    # the similarity to a class is exp(-d^2 / 2*sigma^2) 
     # we compute the similarity to all classes and normalize
-    sim = np.exp(-dist**2 / 2)
+    sim = np.exp(-dist**2 / (2*sigma**2))
+    # sim = 1 / (sigma*dist)  #np.exp(-dist**2 / (2*sigma**2))
     # the probabilities are a softmax over the classes
     expsim = np.exp(sim)
     probs = expsim / np.sum(expsim, axis=-1, keepdims=True)

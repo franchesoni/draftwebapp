@@ -15,3 +15,6 @@ implementation:
 - k for knn (slider):
 - metric to choose euclidean / cosine (radial button)
 - threshold (slider):
+
+issues:
+- mask and probs aren't set correctly

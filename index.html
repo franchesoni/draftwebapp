@@ -7,13 +7,16 @@
 </head>
 <body>
     <h1>IAseg</h1>
-    <!-- radial button to choose metric [euclidean, cosine] -->
-    <div id="metricRadio">
-        <input type="radio" id="euclidean" name="metric" value="euclidean" checked>
-        <label for="euclidean">Euclidean</label><br>
-        <!-- <input type="radio" id="cosine" name="metric" value="cosine"> -->
-        <!-- <label for="cosine">Cosine</label><br> -->
+    <!-- radial buttons to chose feature space [pos, rgb, hue] -->
+    <div id="featSpaceRadio">
+        <input type="radio" id="pos" name="featSpace" value="pos" checked>
+        <label for="pos">Position</label><br>
+        <input type="radio" id="rgb" name="featSpace" value="rgb">
+        <label for="rgb">RGB</label><br>
+        <input type="radio" id="hue" name="featSpace" value="hue">
+        <label for="hue">Hue</label><br>
     </div>
+
     <!-- a slider to choose k -->
     <div id="kSlider" class="slider">
         kNN's k: <div id="kValue">1</div>
@@ -23,6 +26,13 @@
     <div id="thresholdSlider" class="slider">
         Threshold: <div id="thresholdValue">0.5</div>
         <input id="thresholdRange" type="range" min="0" max="1" step="0.01" value="0.5" oninput="thresholdValue.innerText = this.value">
+    </div>
+    <!-- radial button to choose metric [euclidean, cosine] -->
+    <div id="metricRadio">
+        <input type="radio" id="euclidean" name="metric" value="euclidean" checked>
+        <label for="euclidean">Euclidean</label><br>
+        <!-- <input type="radio" id="cosine" name="metric" value="cosine"> -->
+        <!-- <label for="cosine">Cosine</label><br> -->
     </div>
 
     <!-- file input button -->

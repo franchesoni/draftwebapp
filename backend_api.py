@@ -1,78 +1,28 @@
 import io
 import logging
 logger = logging.getLogger("uvicorn")
-from typing import Literal
+import time
 
 from PIL import Image
-import cv2
 import numpy as np
 
-from fastapi import FastAPI, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-from ourfunctions import extract_features, full_compute_probs, compute_masks, upscale_a_as_b, to255
+from ourfunctions import extract_features, full_compute_probs, compute_masks, upscale_a_as_b, to255, sync_feats
+from state import state, active_websockets, update_viewers, Viewer
 
-# next line defines a new viewer object that is a dict of img, mask, prob
-class Viewer:
-    def __init__(self, img: np.ndarray):
-        self.orig_img = img
-        self.pimg = self.process_img(self.orig_img)  # int8, also in frontend
-        self.mask: np.ndarray  # bool, also in frontend
-        self.prob: np.ndarray  # float, also in frontend
-        self.should_update = {'pimg': True, 'mask': False, 'prob': False}
-
-    @staticmethod
-    def process_img(img: np.ndarray):
-        pimg = np.array(Image.fromarray(img).resize((512, 512), resample=Image.Resampling.BILINEAR))
-        return pimg
-
-
-
-# now create a type distance that can be either "euclidean" or "cosine" but nothing more
-Distance = Literal["euclidean", "cosine"]
-# new type click which is a tuple of three ints and a bool
-SClick = tuple[int, int, int, bool]  # stacked click: frame, row, col, category
-
-class State:
-    viewers: list[Viewer] = []  # everything visible
-    clicks: list[SClick] = []
-    feats: list[np.ndarray] = []
-    selected_feats: list[np.ndarray] = []  # one feature per click
-    k: int = 1  # k-nn's k
-    thresh: float = 0.5  # prob threshold over probs
-    dist: Distance = "cosine"  # distance metric
-
-async def update_viewers(ws, viewers):
-    for vind, viewer in enumerate(viewers):
-        if viewer.should_update['pimg']:
-            buffer = io.BytesIO()
-            Image.fromarray(viewer.pimg).convert("RGB").save(buffer, format="JPEG")
-            await ws.send_text(f"{vind},pimg")
-            await ws.send_bytes(buffer.getvalue())
-            viewer.should_update['pimg'] = False
-        if viewer.should_update['mask']:
-            buffer = io.BytesIO()
-            Image.fromarray(viewer.mask).save(buffer, format="PNG")
-            await ws.send_text(f"{vind},mask")
-            await ws.send_bytes(buffer.getvalue())
-            viewer.should_update['mask'] = False
-        if viewer.should_update['prob']:
-            buffer = io.BytesIO()
-            Image.fromarray(viewer.prob).save(buffer, format="PNG")
-            await ws.send_text(f"{vind},prob")
-            await ws.send_bytes(buffer.getvalue())
-            viewer.should_update['prob'] = False
 
 
 app = FastAPI(
     title="draft",
 )
-state, active_websockets = State(), {}
 
 @app.get("/reset")
 async def reset():
-    global state, active_websockets
-    state, active_websockets = State(), {}
+    state.reset()
+    for key in list(active_websockets.keys()):
+        del active_websockets[key]
     logger.info('reset!')
     return {"reset": True}
 
@@ -81,23 +31,60 @@ async def reset():
 async def helloworld():
     return {"Hello": "World"}
 
-@app.post('/setDist')
-async def setDist(data: dict):
-    logger.info(f'new distance is {data}')
-    state.dist = data['dist']
-    # recompute distances
+async def recompute_push_probs_masks():
     # recompute probs
+    probs = full_compute_probs(state.feats, state.selected_feats, state.clicks, state.k)
+    # upscale probs
+    for ind in range(len(probs)):
+        probs[ind] = upscale_a_as_b(probs[ind], state.viewers[ind].pimg)
+        state.viewers[ind].prob = to255(probs[ind])  # update viewer
+        state.viewers[ind].should_update['prob'] = True
+        await update_viewers(active_websockets["viewers"], state.viewers, logger)
     # recompute masks
-    # update viewers
+    masks = compute_masks(probs, state.thresh)
+    for ind in range(len(masks)):
+        state.viewers[ind].mask = to255(masks[ind]*1)  # update viewer
+        state.viewers[ind].should_update['mask'] = True
+        await update_viewers(active_websockets["viewers"], state.viewers, logger)
+
+@app.post('/addClick')
+async def addClick(data: dict):
+    logger.info(f'new click is {data}')
+    number_of_clicks = int(data['click'][0])
+    assert number_of_clicks == len(state.clicks) + 1, f"Expected {len(state.clicks) + 1} clicks, got {number_of_clicks}"
+    frame_ind, col, row, is_pos = data['click'][1]
+    state.clicks.append((frame_ind, row, col, is_pos))
+    # get features for the new click
+    state.selected_feats.append(state.feats[frame_ind][row, col])
+    await recompute_push_probs_masks()
     return {"setDist": True}
+
+# @app.post('/setDist')
+# async def setDist(data: dict):
+#     logger.info(f'new distance is {data}')
+#     state.dist = data['dist']
+#     # recompute distances
+#     # recompute probs
+#     # recompute masks
+#     # update viewers
+#     return {"setDist": True}
+
+@app.post('/setFeatSpace')
+async def setDist(data: dict):
+    logger.info(f'new feature space is {data}')
+    state.feat_space = data['featSpace']
+    for ind in range(len(state.viewers)):
+        # update feats
+        state.feats[ind] = extract_features(state.viewers[ind].pimg, state.feat_space)
+    state.feats = sync_feats(state.feats, state.feat_space)
+    await recompute_push_probs_masks()
+    return {"setFeatSpace": True}
 
 @app.post("/setK")
 async def setK(data: dict):
     logger.info(f'new k is {data}')
     state.k = int(data["k"])
-    # recompute probs
-    # recompute masks
-    # update viewers
+    await recompute_push_probs_masks()
     return {"setK": True}
 
 @app.post("/setThresh")
@@ -111,6 +98,8 @@ async def setThreshold(data: dict):
 @app.post("/newImg")
 async def setImg(file: UploadFile):
     """This function creates a new viewer and adds a new image to it. It then launches"""
+    if 'viewers' not in active_websockets:
+        raise HTTPException(status_code=424, detail="Websocket not connected")
     # receive image
     content = await file.read()
     file_obj = io.BytesIO(content)
@@ -118,24 +107,26 @@ async def setImg(file: UploadFile):
     # create new viewer
     new_viewer = Viewer(np.array(pilimg))
     state.viewers.append(new_viewer)
-    await update_viewers(active_websockets["viewers"], state.viewers)  # push new processed image to frontend
+    await update_viewers(active_websockets["viewers"], state.viewers, logger)  # push new processed image to frontend
     # compute features for the new image
-    state.feats.append(extract_features(new_viewer.pimg))
+    state.feats.append(extract_features(new_viewer.pimg, state.feat_space))
+    state.feats = sync_feats(state.feats, state.feat_space)
     # compute probs for the new image
     new_img_probs = full_compute_probs(state.feats[-1:], state.selected_feats, state.clicks, state.k)
     assert new_img_probs.shape[0] == 1, f"Expected 1 image, got {new_img_probs.shape[0]}"
     # upscale probs
     new_img_probs = upscale_a_as_b(new_img_probs[0], new_viewer.pimg)
+    new_viewer.prob = to255(new_img_probs)  # update viewer
+    new_viewer.should_update['prob'] = True
+    assert 'viewers' in active_websockets, "Websocket not connected"
+    await update_viewers(active_websockets["viewers"], state.viewers, logger)
     # compute mask for the new image
     new_img_mask = compute_masks(new_img_probs, state.thresh)
-    # update the viewer
-    new_viewer.prob = to255(new_img_probs)
-    new_viewer.mask = new_img_mask
+    new_viewer.mask = to255(new_img_mask*1)  # update viewer
     new_viewer.should_update['mask'] = True
-    new_viewer.should_update['prob'] = True
-    # update viewers
     assert 'viewers' in active_websockets, "Websocket not connected"
-    await update_viewers(active_websockets["viewers"], state.viewers)
+    await update_viewers(active_websockets["viewers"], state.viewers, logger)
+
     logger.info(f'n viewers {len(state.viewers)}')
     return {"newImg": True}
 
@@ -153,7 +144,10 @@ async def viewers_endpoint(websocket: WebSocket):
             logger.info(received_text)
     except WebSocketDisconnect:
         logger.info('viewers websocket disconnected')
-        del active_websockets["viewers"]
+        logger.info(f'active ws: {active_websockets}')
+        if 'viewers' in active_websockets:
+            del active_websockets['viewers']
+
 
 
 
