@@ -5,7 +5,7 @@
 console.log("starting main.js");
 
 // define addresses
-const ADDRESS = "0.0.0.0:8000";
+const ADDRESS = "ADDRESSPLACEHOLDER:PORTPLACEHOLDER";
 const httpAddress = "http://" + ADDRESS;
 const wsAddress = "ws://" + ADDRESS + "/ws";
 
@@ -17,7 +17,7 @@ const fileInput = document.getElementById('fileUpload');
 const container = document.getElementById('viewersContainer');
 const kSlider = document.getElementById('kRange');
 // kSlider max value should be always <= num clicks - 1
-const threshSlider = document.getElementById('thresholdRange');
+//const threshSlider = document.getElementById('thresholdRange');
 const euclideanDist = document.getElementById('euclidean');
 
 
@@ -258,10 +258,10 @@ kSlider.onchange = function() {
     postData('setK', 'k', value);
 }
 
-threshSlider.onchange = function() {
-    value = threshSlider.value;
-    postData('setThresh', 'thresh', value);
-}
+// threshSlider.onchange = function() {
+//     value = threshSlider.value;
+//     postData('setThresh', 'thresh', value);
+// }
 
 
 euclideanDist.onchange = function() {
