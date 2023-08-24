@@ -232,25 +232,38 @@ async function handleFileSelect(event) {
 }
 fileInput.addEventListener('change', handleFileSelect);
 
-function postData (endpoint, key, value) {
+
+async function postData (endpoint, key, value) {
     // send a post request with the new value
-    var statusOk = true
-    fetch(`${httpAddress}/${endpoint}`, {
-        method: 'POST',
-        body: JSON.stringify({[key]: value}),
-        headers: {
-            'Content-Type': 'application/json'
+    try {
+        // create the request options
+        const options = {
+            method: 'POST',
+            body: JSON.stringify({[key]: value}),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        };
+        // send the request and wait for the response
+        const response = await fetch(`${httpAddress}/${endpoint}`, options);
+        // check the status of the response
+        if (!response.ok) {
+            // throw an error if the status is not ok
+            throw new Error(`Request failed with status ${response.status}`);
         }
-        })
-    .then(response => 
-        response.json()
-    )
-    .then(data => console.log(data)).catch(error => {      
-        console.log(error)
-        statusOk = false
-    });
-    return statusOk
+        // parse the response as JSON and return it
+        const data = await response.json();
+        console.log(data);
+        return true;
+    } catch (error) {
+        // catch any errors that may occur and log them
+        console.error(error);
+        return false;
+    }
 }
+
+
+
 
 // function that handles the k slider
 kSlider.onchange = function() {
