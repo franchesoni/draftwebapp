@@ -162,6 +162,31 @@ async def viewers_endpoint(websocket: WebSocket):
 
 app.mount("/", StaticFiles(directory=".", html=True))
 
+def launch_server(address, port):
+    # replace ADDRESSPLACEHOLDER and PORTPLACEHOLDER in main.js
+    with open('main.js', 'r') as f:
+        mainjs = f.read()
+    mainjs = mainjs.replace('ADDRESSPLACEHOLDER', address)
+    mainjs = mainjs.replace('PORTPLACEHOLDER', str(port))
+    with open('main.js', 'w') as f:
+        f.write(mainjs)
+
+    # now launch the server, but remember to replace ADDRESSPLACEHOLDER and PORTPLACEHOLDER in main.js again whatever happens
+    try:
+        import uvicorn
+        uvicorn.run(app, host=address, port=port)
+    except Exception as e:
+        logger.error(e)
+        logger.error('error in uvicorn')
+    finally:
+        # replace ADDRESSPLACEHOLDER and PORTPLACEHOLDER in main.js
+        with open('main.js', 'r') as f:
+            mainjs = f.read()
+        mainjs = mainjs.replace(address, 'ADDRESSPLACEHOLDER')
+        mainjs = mainjs.replace(str(port), 'PORTPLACEHOLDER')
+        with open('main.js', 'w') as f:
+            f.write(mainjs)
+
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    from fire import Fire
+    Fire(launch_server)

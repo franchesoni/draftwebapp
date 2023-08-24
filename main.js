@@ -5,7 +5,7 @@
 console.log("starting main.js");
 
 // define addresses
-const ADDRESS = "138.231.63.90:2332";
+const ADDRESS = "ADDRESSPLACEHOLDER:PORTPLACEHOLDER";
 const httpAddress = "http://" + ADDRESS;
 const wsAddress = "ws://" + ADDRESS + "/ws";
 
