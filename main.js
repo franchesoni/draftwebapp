@@ -5,7 +5,7 @@
 console.log("starting main.js");
 
 // define addresses
-const ADDRESS = "ADDRESSPLACEHOLDER:PORTPLACEHOLDER";
+const ADDRESS = "0.0.0.0:8000";
 const httpAddress = "http://" + ADDRESS;
 const wsAddress = "ws://" + ADDRESS + "/ws";
 
@@ -250,7 +250,8 @@ async function postData (endpoint, key, value) {
         // check the status of the response
         if (!response.ok) {
             // throw an error if the status is not ok
-            throw new Error(`Request failed with status ${response.status}`);
+            console.log(`Request failed with status ${response.status}`);
+            return false;
         }
         // parse the response as JSON and return it
         const data = await response.json();
