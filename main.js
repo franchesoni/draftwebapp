@@ -5,7 +5,7 @@
 console.log("starting main.js");
 
 // define addresses
-const ADDRESS = "127.0.0.1:8008";
+const ADDRESS = "0.0.0.0:8000";
 const httpAddress = "http://" + ADDRESS;
 const wsAddress = "ws://" + ADDRESS + "/ws";
 
