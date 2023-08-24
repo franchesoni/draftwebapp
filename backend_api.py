@@ -14,6 +14,7 @@ from state import state, active_websockets, update_viewers, Viewer
 
 
 
+downsampling = {'factor':14}
 app = FastAPI(
     title="draft",
 )
@@ -21,8 +22,8 @@ app = FastAPI(
 @app.get("/reset")
 async def reset():
     state.reset()
-    for key in list(active_websockets.keys()):
-        del active_websockets[key]
+    # for key in list(active_websockets.keys()):
+    #     del active_websockets[key]
     logger.info('reset!')
     return {"reset": True}
 
@@ -34,12 +35,14 @@ async def helloworld():
 async def recompute_push_probs_masks():
     # recompute probs
     probs = full_compute_probs(state.feats, state.selected_feats, state.clicks, state.k)
+    probs = list(probs)
     # upscale probs
     for ind in range(len(probs)):
         probs[ind] = upscale_a_as_b(probs[ind], state.viewers[ind].pimg)
         state.viewers[ind].prob = to255(probs[ind])  # update viewer
         state.viewers[ind].should_update['prob'] = True
         await update_viewers(active_websockets["viewers"], state.viewers, logger)
+    probs = np.array(probs)
     # recompute masks
     masks = compute_masks(probs, state.thresh)
     for ind in range(len(masks)):
@@ -51,13 +54,16 @@ async def recompute_push_probs_masks():
 async def addClick(data: dict):
     logger.info(f'new click is {data}')
     number_of_clicks = int(data['click'][0])
-    assert number_of_clicks == len(state.clicks) + 1, f"Expected {len(state.clicks) + 1} clicks, got {number_of_clicks}"
+    try:
+        assert number_of_clicks == len(state.clicks) + 1, f"Expected {len(state.clicks) + 1} clicks, got {number_of_clicks}"
+    except AssertionError:
+        return HTTPException(424, "Missed one previous click")
     frame_ind, col, row, is_pos = data['click'][1]
     state.clicks.append((frame_ind, row, col, is_pos))
     # get features for the new click
-    state.selected_feats.append(state.feats[frame_ind][row, col])
+    state.selected_feats.append(state.feats[frame_ind][row//downsampling['factor'], col//downsampling['factor']])
     await recompute_push_probs_masks()
-    return {"setDist": True}
+    return {"addClick": True}
 
 # @app.post('/setDist')
 # async def setDist(data: dict):
@@ -75,8 +81,11 @@ async def setDist(data: dict):
     state.feat_space = data['featSpace']
     for ind in range(len(state.viewers)):
         # update feats
-        state.feats[ind] = extract_features(state.viewers[ind].pimg, state.feat_space)
+        state.feats[ind] = extract_features(state.viewers[ind].pimg, state.feat_space, downsampling)
     state.feats = sync_feats(state.feats, state.feat_space)
+    for click_ind, click in enumerate(state.clicks):
+        frame_ind, row, col, cat = click
+        state.selected_feats[click_ind] = state.feats[frame_ind][row//downsampling['factor'], col//downsampling['factor']]
     await recompute_push_probs_masks()
     return {"setFeatSpace": True}
 
@@ -109,7 +118,7 @@ async def setImg(file: UploadFile):
     state.viewers.append(new_viewer)
     await update_viewers(active_websockets["viewers"], state.viewers, logger)  # push new processed image to frontend
     # compute features for the new image
-    state.feats.append(extract_features(new_viewer.pimg, state.feat_space))
+    state.feats.append(extract_features(new_viewer.pimg, state.feat_space, downsampling))
     state.feats = sync_feats(state.feats, state.feat_space)
     # compute probs for the new image
     new_img_probs = full_compute_probs(state.feats[-1:], state.selected_feats, state.clicks, state.k)
@@ -155,4 +164,4 @@ app.mount("/", StaticFiles(directory=".", html=True))
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8008)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -148,10 +148,17 @@ class Viewer extends HTMLElement {
         // send the click to the backend
         var click = [this.index, x, y, isPositive];
         clicks.push(click);
-        this.renderDisplay();
         var lenandclick = [clicks.length, click];
-        postData('addClick', 'click', lenandclick);
-        kSlider.max = (clicks.length - 1).toString();
+        var ok = postData('addClick', 'click', lenandclick);
+        if (ok) {
+            this.renderDisplay();
+            kSlider.max = (clicks.length - 1).toString();
+        } else {
+            console.log('click couldnt be added')
+            console.log(ok)
+            // remove last click from list of clicks
+            clicks.pop()
+        }
     }
 
 
@@ -227,6 +234,7 @@ fileInput.addEventListener('change', handleFileSelect);
 
 function postData (endpoint, key, value) {
     // send a post request with the new value
+    var statusOk = true
     fetch(`${httpAddress}/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify({[key]: value}),
@@ -234,8 +242,14 @@ function postData (endpoint, key, value) {
             'Content-Type': 'application/json'
         }
         })
-    .then(response => response.json())
-    .then(data => console.log(data)).catch(error => console.log(error));
+    .then(response => 
+        response.json()
+    )
+    .then(data => console.log(data)).catch(error => {      
+        console.log(error)
+        statusOk = false
+    });
+    return statusOk
 }
 
 // function that handles the k slider
@@ -270,7 +284,7 @@ var radios = document.querySelectorAll('input[name="featSpace"]');
 function handleChange(event) {
   // get the value of the selected radio button
   var value = event.target.value;
-//   postData('setFeatSpace', 'featSpace', value);
+  postData('setFeatSpace', 'featSpace', value);
   console.log(value)
 }
 // loop through the radio buttons and add the event listener

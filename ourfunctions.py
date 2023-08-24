@@ -1,5 +1,49 @@
 import numpy as np
+from PIL import Image
+import torch
+from torchvision import transforms
 import cv2
+
+
+def dino_predict(dino: torch.nn.Module, pimg: np.ndarray) -> np.ndarray:
+    def preprocess_image_array(image_array, target_size):
+        # Step 1: Normalize using mean and std of ImageNet dataset
+        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array([0.229, 0.224, 0.225])
+        image_array = (image_array / 255.0 - mean) / std
+
+        # Step 2: Resize the image_array to the target size
+        image_array = np.transpose(image_array, (2, 0, 1))  # PyTorch expects (C, H, W) format
+        image_tensor = torch.tensor(image_array, dtype=torch.float32)
+        image_tensor = image_tensor.unsqueeze(0)
+        image_tensor = resize_image_tensor(image_tensor, target_size=target_size)
+        return image_tensor
+
+    def resize_image_tensor(image_tensor, target_size=(224, 224)):
+        transform = transforms.Compose([
+            transforms.Resize(target_size),
+        ])
+        resized_image = transform(image_tensor)
+        return resized_image
+
+    TARGET_SIZE = (504, 504)
+    with torch.no_grad():
+        timg = preprocess_image_array(pimg, target_size=TARGET_SIZE)
+        print(timg.min(), timg.max(), timg.shape)
+
+        dino.eval()
+        outs = dino.forward_features(timg)
+        print('output shape:', outs['x_norm_patchtokens'].shape)
+
+        feats = outs['x_norm_patchtokens']
+        P = 14
+        B, C, H, W = timg.shape
+        Ph, Pw = H // P, W // P
+        B, PhPw, F = feats.shape
+        feats = feats.reshape(B, Ph, Pw, F)
+        feats = np.array(feats[0])
+    return feats
+
 
 def sync_feats(feat_list: list[np.ndarray], feat_space: str) -> list[np.ndarray]:
     if feat_space == 'pos':
@@ -7,21 +51,29 @@ def sync_feats(feat_list: list[np.ndarray], feat_space: str) -> list[np.ndarray]
             feat_list[frame_ind][:, :, 2] = frame_ind * 10000
     return feat_list
 
-def extract_features(pimg: np.ndarray, feat_space: str) -> np.ndarray:
-    if feat_space == 'hue':
-        # convert to hsv
-        hsv = cv2.cvtColor(pimg, cv2.COLOR_RGB2HSV)
-        # extract features
-        feat = hsv[..., 0:1]  # hue and value as feature
-    elif feat_space == 'rgb':
-        feat = pimg  # rgb as feature
-    elif feat_space == 'pos':
-        # position as features
-        feat = np.zeros(pimg.shape[:2] + (3,))
-        feat[..., 0] = np.arange(pimg.shape[0])[:, None]  # row
-        feat[..., 1] = np.arange(pimg.shape[1])[None, :]  # col
+def extract_features(pimg: np.ndarray, feat_space: str, downsampling: dict) -> np.ndarray:
+    assert len(pimg.shape) == 3
+    if feat_space == 'dino':
+        # pimg size should be 504
+        dinov2_vits14 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
+        feat = dino_predict(dinov2_vits14, pimg)
+        assert downsampling['factor'] * feat.shape[0] == pimg.shape[0]
     else:
-        raise ValueError(f"Unknown feature extractor: {feat_space}")
+        pimg = cv2.resize(pimg, dsize=(pimg.shape[0]//downsampling['factor'], pimg.shape[1]//downsampling['factor']))
+        if feat_space == 'hue':
+            # convert to hsv
+            hsv = cv2.cvtColor(pimg, cv2.COLOR_RGB2HSV)
+            # extract features
+            feat = hsv[..., 0:1]  # hue and value as feature
+        elif feat_space == 'rgb':
+            feat = pimg  # rgb as feature
+        elif feat_space == 'pos':
+            # position as features
+            feat = np.zeros(pimg.shape[:2] + (3,))
+            feat[..., 0] = np.arange(pimg.shape[0])[:, None]  # row
+            feat[..., 1] = np.arange(pimg.shape[1])[None, :]  # col
+        else:
+            raise ValueError(f"Unknown feature extractor: {feat_space}")
     return feat
 
 def compute_distances(feat: list[np.ndarray], selected_feat: list[np.ndarray]) -> np.ndarray:
@@ -95,11 +147,14 @@ def upscale_a_as_b(imga, imgb):
     # imgb is H', W', C
     # we want to upscale imga to the size of imgb
     # we first compute the ratio of sizes
-    ratioy = imgb.shape[0] / imga.shape[0]
-    ratiox = imgb.shape[1] / imga.shape[1]
-    imga_up = cv2.resize(imga, (0, 0), fx=ratiox, fy=ratioy)
+    imga_up = cv2.resize(imga, (imgb.shape[0], imgb.shape[1]))
     return imga_up
 
 def to255(img):
     assert img.min() >= 0 and img.max() <= 1 and img.min() <= img.max()
     return (img * 255).astype(np.uint8)
+
+def process_img(img: np.ndarray) -> np.ndarray:
+    pimg = np.array(Image.fromarray(img).resize((504, 504), resample=Image.Resampling.BILINEAR))
+    return pimg
+

@@ -2,6 +2,7 @@ from typing import Literal
 import numpy as np
 from PIL import Image
 import io
+from ourfunctions import process_img
 
 # now create a type distance that can be either "euclidean" or "cosine" but nothing more
 Distance = Literal["euclidean", "cosine"]
@@ -12,15 +13,10 @@ SClick = tuple[int, int, int, bool]  # stacked click: frame, row, col, category
 class Viewer:
     def __init__(self, img: np.ndarray):
         self.orig_img = img
-        self.pimg = self.process_img(self.orig_img)  # int8, also in frontend
+        self.pimg = process_img(self.orig_img)  # int8, also in frontend
         self.mask: np.ndarray  # bool, also in frontend
         self.prob: np.ndarray  # float, also in frontend
         self.should_update = {'pimg': True, 'mask': False, 'prob': False}
-
-    @staticmethod
-    def process_img(img: np.ndarray):
-        pimg = np.array(Image.fromarray(img).resize((512, 512), resample=Image.Resampling.BILINEAR))
-        return pimg
 
 
 
