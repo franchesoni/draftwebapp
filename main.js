@@ -5,7 +5,7 @@
 console.log("starting main.js");
 
 // define addresses
-const ADDRESS = "0.0.0.0:8000";
+const ADDRESS = "ADDRESSPLACEHOLDER:PORTPLACEHOLDER";
 const httpAddress = "http://" + ADDRESS;
 const wsAddress = "ws://" + ADDRESS + "/ws";
 
