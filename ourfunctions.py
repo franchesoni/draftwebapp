@@ -113,6 +113,18 @@ def compute_probs_knn(probs, clicks, K):
     # we compute the k nearest neighbors
     # we first flatten the probs
     B, H, W, C = probs.shape
+    # # for research purposes, compute probability of pos and neg as given by your distance function and the softmax
+    # pos_class = (probs*click_categories.reshape(1, 1, 1, C)).sum(axis=-1)
+    # norm = lambda x : (x - x.min() + 1e-9) / (x.max() - x.min() + 1e-9)
+    # for frame_ind in range(B):
+    #     with open('pos_class.txt', 'a') as f:
+    #         f.write(f'frame ind {frame_ind}\n \
+    #                 min {pos_class[frame_ind].min()}\n \
+    #                 max {pos_class[frame_ind].max()}')
+    #     Image.fromarray(to255(norm(pos_class[frame_ind]))).save(f'pos_class_{frame_ind}.png')
+    # neg_class = (probs*(1-click_categories.reshape(1, 1, 1, C))).sum(axis=-1)
+    # assert np.allclose(pos_class + neg_class, 1)
+
     probs_flat = probs.reshape(-1, probs.shape[-1])  # B*H*W, C
     # get the top k indices for each pixel
     topk = np.argpartition(probs_flat, -K, axis=-1)[:, -K:]  # B*H*W, K
